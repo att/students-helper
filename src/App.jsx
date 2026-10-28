@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, LockKeyhole, Sparkles, Users, X, Heart, MessageCircle, UserRoundCheck, ArrowUpRight } from "lucide-react";
+import { Check, Sparkles, Users, X, Heart, MessageCircle, UserRoundCheck, ArrowUpRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib/supabase";
 
@@ -131,7 +131,8 @@ function NameGate({ onJoin }) {
 export default function UnlockYourNextMove() {
   const [profile, setProfile] = useState(undefined); // undefined = loading, null = needs name
   const [done, setDone] = useState([]);
-  const [feed, setFeed] = useState([]);
+  const [unlocks, setUnlocks] = useState([]);
+  const [people, setPeople] = useState([]);
   const [celebration, setCelebration] = useState(null);
   const [, setTick] = useState(0);
   const toastTimer = useRef(null);
@@ -152,36 +153,52 @@ export default function UnlockYourNextMove() {
     toastTimer.current = setTimeout(() => setCelebration(null), 2600);
   }, []);
 
-  const loadFeed = useCallback(async () => {
-    const { data } = await supabase
-      .from("unlocks")
-      .select("id, quest_id, created_at, user_id, profiles(username)")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    const rows = data ?? [];
-    setFeed(rows);
+  const loadData = useCallback(async () => {
+    const [u, p] = await Promise.all([
+      supabase
+        .from("unlocks")
+        .select("id, quest_id, created_at, user_id, profiles(username)")
+        .order("created_at", { ascending: false })
+        .limit(1000),
+      supabase.from("profiles").select("user_id, username").limit(1000),
+    ]);
+    const rows = u.data ?? [];
+    setUnlocks(rows);
+    setPeople(p.data ?? []);
     return rows;
   }, []);
+
+  const feed = useMemo(() => unlocks.slice(0, 50), [unlocks]);
+  const stats = useMemo(() => {
+    const counts = {};
+    unlocks.forEach((r) => { counts[r.user_id] = (counts[r.user_id] ?? 0) + 1; });
+    return people
+      .map((p) => ({ ...p, count: counts[p.user_id] ?? 0 }))
+      .sort((a, b) => b.count - a.count || a.username.localeCompare(b.username));
+  }, [unlocks, people]);
 
   useEffect(() => {
     if (!profile) return;
     supabase.from("unlocks").select("quest_id").eq("user_id", profile.user_id).then(({ data }) => setDone((data ?? []).map((r) => r.quest_id)));
-    loadFeed();
+    loadData();
     const channel = supabase
       .channel("unlocks-feed")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "unlocks" }, async (payload) => {
-        const rows = await loadFeed();
+        const rows = await loadData();
         if (payload.new.user_id === profile.user_id) return;
         const row = rows.find((r) => r.id === payload.new.id);
         if (row) showToast(row.profiles?.username ?? "מישהו.י", questById[row.quest_id]?.title ?? "");
       })
       .subscribe();
-    const tick = setInterval(() => setTick((n) => n + 1), 30000);
+    const tick = setInterval(() => {
+      setTick((n) => n + 1);
+      loadData();
+    }, 30000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(tick);
     };
-  }, [profile, loadFeed, showToast]);
+  }, [profile, loadData, showToast]);
 
   const progress = useMemo(() => Math.round((done.length / quests.length) * 100), [done]);
 
@@ -194,7 +211,7 @@ export default function UnlockYourNextMove() {
       setDone((d) => d.filter((id) => id !== quest.id));
       setCelebration(null);
     }
-    loadFeed();
+    loadData();
   }
 
   if (profile === undefined) return <div className="min-h-screen bg-[#123B46]" />;
@@ -217,14 +234,10 @@ export default function UnlockYourNextMove() {
         )}
       </AnimatePresence>
 
-      <header className="relative overflow-hidden bg-[#123B46] px-5 pb-14 pt-7 text-white">
+      <header className="relative overflow-hidden bg-[#123B46] px-5 pb-16 pt-12 text-white">
         <div className="absolute -left-14 -top-16 h-52 w-52 rounded-full bg-[#F4A261]/20 blur-2xl" />
         <div className="absolute -right-16 bottom-0 h-48 w-48 rounded-full bg-[#2A9D8F]/30 blur-2xl" />
         <div className="relative mx-auto max-w-5xl">
-          <div dir="ltr" className="mb-9 flex items-center justify-between gap-4 text-left">
-            <div className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold tracking-[.14em] sm:text-sm">CYBER COURSE 73 × AT&amp;T</div>
-            <div className="flex items-center gap-2 text-[#FFD166]"><LockKeyhole size={17}/><span className="font-mono text-xs">READY_</span></div>
-          </div>
           <p className="mb-2 text-sm font-semibold text-[#FFD6A5]">היום הזה שייך לכם.</p>
           <h1 dir="ltr" className="max-w-3xl text-left font-mono text-4xl font-black leading-[.98] sm:text-6xl">UNLOCK<br/><span className="text-[#7BD8CF]">YOUR NEXT MOVE</span></h1>
           <p className="mt-5 max-w-xl text-base leading-7 text-[#EDF7F5]">כל שאלה, שיחה או צעד קטן יכולים לפתוח משהו חדש. לא צריך לעשות הכול. פשוט לבחור איפה בא לכם לנסות.</p>
@@ -234,16 +247,17 @@ export default function UnlockYourNextMove() {
       <main className="mx-auto -mt-7 grid max-w-5xl gap-6 px-4 pb-14 lg:grid-cols-[1.45fr_.8fr]">
         <section>
           <Card className="mb-5 rounded-[28px] border border-[#EEDFD2] bg-white/95 shadow-[0_12px_40px_rgba(54,47,41,.08)]">
-            <div className="p-5 sm:p-6">
-              <div className="grid items-end gap-5 sm:grid-cols-[1fr_auto]">
-                <div>
-                  <div className="text-sm text-[#6B747C]">שלום,</div>
-                  <div className="text-2xl font-black">{profile.username}</div>
+            <div className="flex items-center justify-between gap-6 px-6 py-5">
+              <div className="min-w-0">
+                <div className="text-sm leading-5 text-[#6B747C]">שלום,</div>
+                <div dir="auto" className="mt-1 truncate text-2xl font-black leading-8">{profile.username}</div>
+              </div>
+              <div className="w-40 shrink-0 sm:w-48">
+                <div className="mb-2 flex items-center justify-between text-xs font-medium text-[#6B747C]">
+                  <span>ההתקדמות שלי</span>
+                  <span dir="ltr" className="font-mono font-bold text-[#183E49]">{done.length}/{quests.length}</span>
                 </div>
-                <div className="min-w-40">
-                  <div className="mb-2 flex justify-between text-xs font-medium text-[#6B747C]"><span>ה־UNLOCKS שלי</span><span>{done.length}/{quests.length}</span></div>
-                  <div className="h-3 overflow-hidden rounded-full bg-[#F2E7DC]"><motion.div animate={{ width: `${progress}%` }} className="h-full rounded-full bg-gradient-to-l from-[#F4A261] to-[#2A9D8F]" /></div>
-                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-[#F2E7DC]"><motion.div animate={{ width: `${progress}%` }} className="h-full rounded-full bg-gradient-to-l from-[#F4A261] to-[#2A9D8F]" /></div>
               </div>
             </div>
           </Card>
@@ -268,8 +282,8 @@ export default function UnlockYourNextMove() {
           </div>
         </section>
 
-        <aside>
-          <Card className="sticky top-5 overflow-hidden rounded-[28px] border-0 bg-[#FFE9D6] shadow-[0_12px_35px_rgba(72,52,38,.08)]">
+        <aside className="space-y-5">
+          <Card className="overflow-hidden rounded-[28px] border-0 bg-[#FFE9D6] shadow-[0_12px_35px_rgba(72,52,38,.08)]">
             <div className="p-0">
               <div className="bg-[#F7C99F] p-5">
                 <div className="mb-2 flex items-center gap-2 text-[#7A421E]"><Users size={20}/><span className="text-xs font-bold tracking-wider">WE'RE IN THIS TOGETHER</span></div>
@@ -289,6 +303,22 @@ export default function UnlockYourNextMove() {
               <div className="mx-5 mb-5 rounded-2xl border border-[#E7CBB1] bg-white/45 p-4 text-sm leading-6 text-[#705C4D]">
                 <span className="font-bold">הרעיון:</span> כל אחד עושה צעד קטן משלו, וביחד נוצרת תנועה בחדר.
               </div>
+            </div>
+          </Card>
+
+          <Card className="overflow-hidden rounded-[28px] border border-[#EEDFD2] bg-white shadow-[0_12px_35px_rgba(72,52,38,.06)]">
+            <div className="flex items-center justify-between px-5 pt-5">
+              <h2 className="text-lg font-black text-[#3E342D]">מי כבר פתח?</h2>
+              <span className="text-xs text-[#927E70]">{people.length} משתתפים</span>
+            </div>
+            <div className="max-h-80 space-y-1 overflow-y-auto p-3">
+              {stats.map((p) => (
+                <div key={p.user_id} className={`flex items-center gap-3 rounded-2xl px-3 py-2 ${p.user_id === profile.user_id ? "bg-[#EAF8F5]" : ""}`}>
+                  <span dir="auto" className="min-w-0 flex-1 truncate text-sm font-semibold">{p.username}</span>
+                  <div className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-[#F2E7DC]"><div className="h-full rounded-full bg-[#2A9D8F]" style={{ width: `${(p.count / quests.length) * 100}%` }} /></div>
+                  <span dir="ltr" className="w-9 shrink-0 text-left font-mono text-xs font-bold text-[#183E49]">{p.count}/{quests.length}</span>
+                </div>
+              ))}
             </div>
           </Card>
         </aside>
