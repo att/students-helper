@@ -189,6 +189,7 @@ export default function UnlockYourNextMove() {
         const row = rows.find((r) => r.id === payload.new.id);
         if (row) showToast(row.profiles?.username ?? "מישהו.י", questById[row.quest_id]?.title ?? "");
       })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "unlocks" }, () => loadData())
       .subscribe();
     const tick = setInterval(() => {
       setTick((n) => n + 1);
@@ -203,7 +204,13 @@ export default function UnlockYourNextMove() {
   const progress = useMemo(() => Math.round((done.length / quests.length) * 100), [done]);
 
   async function toggleQuest(quest) {
-    if (done.includes(quest.id)) return;
+    if (done.includes(quest.id)) {
+      setDone((d) => d.filter((id) => id !== quest.id));
+      const { data, error } = await supabase.from("unlocks").delete().eq("user_id", profile.user_id).eq("quest_id", quest.id).select("id");
+      if (error || !data?.length) setDone((d) => [...d, quest.id]);
+      loadData();
+      return;
+    }
     setDone((d) => [...d, quest.id]);
     showToast(profile.username, quest.title);
     const { error } = await supabase.from("unlocks").insert({ user_id: profile.user_id, quest_id: quest.id });
@@ -244,7 +251,7 @@ export default function UnlockYourNextMove() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto -mt-7 grid max-w-5xl gap-6 px-4 pb-14 lg:grid-cols-[1.45fr_.8fr]">
+      <main className="relative z-10 mx-auto -mt-7 grid max-w-5xl gap-6 px-4 pb-14 lg:grid-cols-[1.45fr_.8fr] xl:max-w-7xl xl:grid-cols-[1.4fr_.75fr_.65fr]">
         <section>
           <Card className="mb-5 rounded-[28px] border border-[#EEDFD2] bg-white/95 shadow-[0_12px_40px_rgba(54,47,41,.08)]">
             <div className="flex items-center justify-between gap-6 px-6 py-5">
@@ -273,7 +280,7 @@ export default function UnlockYourNextMove() {
                     <div>
                       <div dir="ltr" className="text-left font-mono text-sm font-extrabold tracking-tight text-[#183E49]">{q.title}</div>
                       <p className="mt-2 text-sm leading-6 text-[#66717A]">{q.text}</p>
-                      <div className={`mt-3 text-xs font-semibold ${checked ? "text-[#21877C]" : "text-[#C77A40]"}`}>{checked ? "נפתח ✓" : "עשיתי את זה →"}</div>
+                      <div className={`mt-3 text-xs font-semibold ${checked ? "text-[#21877C]" : "text-[#C77A40]"}`}>{checked ? "נפתח ✓ · לחיצה לביטול" : "עשיתי את זה →"}</div>
                     </div>
                   </div>
                 </motion.button>
@@ -282,14 +289,33 @@ export default function UnlockYourNextMove() {
           </div>
         </section>
 
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:self-start">
-          <Card className="shrink-0 rounded-[28px] bg-[#F7C99F] p-5 shadow-[0_12px_35px_rgba(72,52,38,.08)]">
-            <div className="mb-1 flex items-center gap-2 text-[#7A421E]"><Users size={18}/><span className="text-xs font-bold tracking-wider">WE'RE IN THIS TOGETHER</span></div>
-            <h2 className="text-lg font-black leading-snug text-[#3E342D]">בואו נראה כמה נצליח לפתוח יחד</h2>
-            <p className="mt-1 text-sm leading-6 text-[#675246]">כל UNLOCK מוסיף להתקדמות של כל הקבוצה. אין תחרות, רק אומץ שמצטבר.</p>
+        <aside>
+          <Card className="sticky top-5 overflow-hidden rounded-[28px] border-0 bg-[#FFE9D6] shadow-[0_12px_35px_rgba(72,52,38,.08)]">
+            <div className="p-0">
+              <div className="bg-[#F7C99F] p-5">
+                <div className="mb-2 flex items-center gap-2 text-[#7A421E]"><Users size={20}/><span className="text-xs font-bold tracking-wider">WE'RE IN THIS TOGETHER</span></div>
+                <h2 className="text-xl font-black text-[#3E342D]">בואו נראה כמה נצליח לפתוח יחד</h2>
+                <p className="mt-2 text-sm leading-6 text-[#675246]">כל UNLOCK של אחד או אחת מאיתנו מוסיף להתקדמות של כל הקבוצה. אין תחרות, רק קצת אומץ שמצטבר לאורך היום.</p>
+              </div>
+              <div className="max-h-[38vh] min-h-32 space-y-3 overflow-y-auto p-5">
+                {feed.length === 0 && <div className="text-sm text-[#927E70]">עוד אף אחד לא פתח. תהיו הראשונים!</div>}
+                {feed.map((item) => (
+                  <motion.div key={item.id} initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} className="rounded-2xl bg-white/75 p-3.5 shadow-sm">
+                    <div className="text-sm"><strong>{item.profiles?.username ?? "מישהו.י"}</strong> הוסיף.ה לקבוצה</div>
+                    <div dir="ltr" className="mt-1.5 text-left font-mono text-xs font-bold text-[#167C73]">+ {questById[item.quest_id]?.title}</div>
+                    <div className="mt-1 text-xs text-[#927E70]">{timeAgo(item.created_at)}</div>
+                  </motion.div>
+                ))}
+              </div>
+              <div className="mx-5 mb-5 rounded-2xl border border-[#E7CBB1] bg-white/45 p-4 text-sm leading-6 text-[#705C4D]">
+                <span className="font-bold">הרעיון:</span> כל אחד עושה צעד קטן משלו, וביחד נוצרת תנועה בחדר.
+              </div>
+            </div>
           </Card>
+        </aside>
 
-          <Card className="flex max-h-72 min-h-0 flex-col overflow-hidden rounded-[28px] border border-[#EEDFD2] bg-white shadow-[0_12px_35px_rgba(72,52,38,.06)] lg:max-h-none lg:flex-1">
+        <aside className="lg:col-span-2 xl:col-span-1">
+          <Card className="flex max-h-96 flex-col overflow-hidden rounded-[28px] border border-[#EEDFD2] bg-white shadow-[0_12px_35px_rgba(72,52,38,.06)] xl:sticky xl:top-5 xl:max-h-[calc(100vh-2.5rem)]">
             <div className="flex shrink-0 items-center justify-between px-5 pb-1 pt-4">
               <h2 className="text-base font-black text-[#3E342D]">התקדמות הקבוצה</h2>
               <span className="text-xs text-[#927E70]">{people.length} משתתפים</span>
@@ -298,23 +324,9 @@ export default function UnlockYourNextMove() {
               {stats.map((p) => (
                 <div key={p.user_id} className={`flex items-center gap-3 rounded-2xl px-3 py-1.5 ${p.user_id === profile.user_id ? "bg-[#EAF8F5]" : ""}`}>
                   <span dir="auto" className="min-w-0 flex-1 truncate text-sm font-semibold">{p.username}</span>
-                  <div className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-[#F2E7DC]"><div className="h-full rounded-full bg-[#2A9D8F]" style={{ width: `${(p.count / quests.length) * 100}%` }} /></div>
+                  <div className="h-2 w-14 shrink-0 overflow-hidden rounded-full bg-[#F2E7DC]"><div className="h-full rounded-full bg-[#2A9D8F]" style={{ width: `${(p.count / quests.length) * 100}%` }} /></div>
                   <span dir="ltr" className="w-9 shrink-0 text-left font-mono text-xs font-bold text-[#183E49]">{p.count}/{quests.length}</span>
                 </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="flex max-h-72 min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#FFE9D6] shadow-[0_12px_35px_rgba(72,52,38,.08)] lg:max-h-none lg:flex-1">
-            <h2 className="shrink-0 px-5 pb-1 pt-4 text-base font-black text-[#3E342D]">מה קורה עכשיו</h2>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-4">
-              {feed.length === 0 && <div className="text-sm text-[#927E70]">עוד אף אחד לא פתח. תהיו הראשונים!</div>}
-              {feed.map((item) => (
-                <motion.div key={item.id} initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} className="rounded-2xl bg-white/75 px-3.5 py-2.5 shadow-sm">
-                  <div className="text-sm"><strong>{item.profiles?.username ?? "מישהו.י"}</strong> הוסיף.ה לקבוצה</div>
-                  <div dir="ltr" className="mt-1 text-left font-mono text-xs font-bold text-[#167C73]">+ {questById[item.quest_id]?.title}</div>
-                  <div className="mt-0.5 text-xs text-[#927E70]">{timeAgo(item.created_at)}</div>
-                </motion.div>
               ))}
             </div>
           </Card>

@@ -30,6 +30,9 @@ create policy "unlocks readable by all" on public.unlocks
 create policy "insert own unlock" on public.unlocks
   for insert to authenticated with check (user_id = (select auth.uid()));
 
+create policy "delete own unlock" on public.unlocks
+  for delete to authenticated using (user_id = (select auth.uid()));
+
 create function public.username_available(name text)
 returns boolean
 language sql stable security definer set search_path = ''
