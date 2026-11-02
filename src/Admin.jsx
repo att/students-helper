@@ -157,8 +157,7 @@ export default function Admin() {
 
         <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Tile label="משתתפים" value={people.length} />
-          <Tile label="סה״כ UNLOCKS" value={stats.total} sub={`מתוך ${people.length * quests.length}`} />
-          <Tile label="ממוצע לאדם" value={stats.avg} sub={`מתוך ${quests.length}`} />
+          <Tile label="משימות שהושלמו" value={stats.total} sub={`מתוך ${people.length * quests.length} אפשריות`} />
           <Tile label={`השלימו ${quests.length}/${quests.length}`} value={stats.completed} />
         </section>
 

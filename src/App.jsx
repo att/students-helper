@@ -302,8 +302,11 @@ export default function UnlockYourNextMove() {
 
         <aside className="lg:col-span-2 xl:col-span-1">
           <Card className="flex max-h-96 flex-col overflow-hidden rounded-[28px] border border-[#EEDFD2] bg-white shadow-[0_12px_35px_rgba(72,52,38,.06)] xl:sticky xl:top-5 xl:max-h-[calc(100vh-2.5rem)]">
-            <div className="flex shrink-0 items-center justify-between px-5 pb-1 pt-4">
+            <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-1 pt-4">
+              <div>
               <h2 className="text-base font-black text-[#3E342D]">התקדמות הקבוצה</h2>
+                <div className="mt-1 text-xs text-[#6B747C]">{unlocks.length} משימות הושלמו מתוך {people.length * quests.length}</div>
+              </div>
               <span className="text-xs text-[#927E70]">{people.length} משתתפים</span>
             </div>
             <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3">
