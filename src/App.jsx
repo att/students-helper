@@ -139,10 +139,10 @@ export default function UnlockYourNextMove() {
     const [u, p] = await Promise.all([
       supabase
         .from("unlocks")
-        .select("id, quest_id, created_at, user_id, profiles(username)")
+        .select("id, quest_id, created_at, user_id")
         .order("created_at", { ascending: false })
         .limit(1000),
-      supabase.from("profiles").select("user_id, username").limit(1000),
+      supabase.from("profiles").select("user_id").limit(1000),
     ]);
     const rows = u.data ?? [];
     setUnlocks(rows);
@@ -158,10 +158,8 @@ export default function UnlockYourNextMove() {
   const feed = useMemo(() => unlocks.slice(0, 50), [unlocks]);
   const stats = useMemo(() => {
     const counts = {};
-    unlocks.forEach((r) => { counts[r.user_id] = (counts[r.user_id] ?? 0) + 1; });
-    return people
-      .map((p) => ({ ...p, count: counts[p.user_id] ?? 0 }))
-      .sort((a, b) => b.count - a.count || a.username.localeCompare(b.username));
+    unlocks.forEach((r) => { counts[r.quest_id] = (counts[r.quest_id] ?? 0) + 1; });
+    return counts;
   }, [unlocks, people]);
 
   useEffect(() => {
@@ -174,7 +172,7 @@ export default function UnlockYourNextMove() {
         const rows = await loadData();
         if (payload.new.user_id === profile.user_id) return;
         const row = rows.find((r) => r.id === payload.new.id);
-        if (row) showToast(row.profiles?.username ?? "מישהו.י", questById[row.quest_id]?.title ?? "");
+        if (row) showToast("", questById[row.quest_id]?.title ?? "");
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "unlocks" }, () => loadData())
       .subscribe();
@@ -220,7 +218,7 @@ export default function UnlockYourNextMove() {
             <div className="flex items-center gap-3">
               <Sparkles className="text-[#FFD166]" />
               <div>
-                <div className="font-bold">{celebration.name} הוסיף.ה עוד UNLOCK לקבוצה!</div>
+                <div className="font-bold">נוסף UNLOCK לקבוצה!</div>
                 <div dir="ltr" className="mt-0.5 text-sm font-mono text-[#DDF5F1]">{celebration.quest}</div>
               </div>
             </div>
@@ -287,14 +285,11 @@ export default function UnlockYourNextMove() {
                 {feed.length === 0 && <div className="text-sm text-[#927E70]">עוד אף אחד לא פתח. תהיו הראשונים!</div>}
                 {feed.map((item) => (
                   <motion.div key={item.id} initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} className="rounded-2xl bg-white/75 p-3.5 shadow-sm">
-                    <div className="text-sm"><strong>{item.profiles?.username ?? "מישהו.י"}</strong> הוסיף.ה לקבוצה</div>
-                    <div dir="ltr" className="mt-1.5 text-left font-mono text-xs font-bold text-[#167C73]">+ {questById[item.quest_id]?.title}</div>
+                    <div className="text-sm">נוסף UNLOCK לקבוצה</div>
+                    <div dir="ltr" className="mt-1.5 text-left font-mono text-xs font-bold text-[#167C73]">{questById[item.quest_id]?.title}</div>
                     <div className="mt-1 text-xs text-[#927E70]">{timeAgo(item.created_at)}</div>
                   </motion.div>
                 ))}
-              </div>
-              <div className="mx-5 mb-5 rounded-2xl border border-[#E7CBB1] bg-white/45 p-4 text-sm leading-6 text-[#705C4D]">
-                <span className="font-bold">הרעיון:</span> כל אחד עושה צעד קטן משלו, וביחד נוצרת תנועה בחדר.
               </div>
             </div>
           </Card>
@@ -304,19 +299,24 @@ export default function UnlockYourNextMove() {
           <Card className="flex max-h-96 flex-col overflow-hidden rounded-[28px] border border-[#EEDFD2] bg-white shadow-[0_12px_35px_rgba(72,52,38,.06)] xl:sticky xl:top-5 xl:max-h-[calc(100vh-2.5rem)]">
             <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-1 pt-4">
               <div>
-              <h2 className="text-base font-black text-[#3E342D]">התקדמות הקבוצה</h2>
+                <h2 className="text-base font-black text-[#3E342D]">התקדמות קבוצתית לפי משימה</h2>
                 <div className="mt-1 text-xs text-[#6B747C]">{unlocks.length} משימות הושלמו מתוך {people.length * quests.length}</div>
               </div>
-              <span className="text-xs text-[#927E70]">{people.length} משתתפים</span>
             </div>
-            <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3">
-              {stats.map((p) => (
-                <div key={p.user_id} className={`flex items-center gap-3 rounded-2xl px-3 py-1.5 ${p.user_id === profile.user_id ? "bg-[#EAF8F5]" : ""}`}>
-                  <span dir="auto" className="min-w-0 flex-1 truncate text-sm font-semibold">{p.username}</span>
-                  <div className="h-2 w-14 shrink-0 overflow-hidden rounded-full bg-[#F2E7DC]"><div className="h-full rounded-full bg-[#2A9D8F]" style={{ width: `${(p.count / quests.length) * 100}%` }} /></div>
-                  <span dir="ltr" className="w-9 shrink-0 text-left font-mono text-xs font-bold text-[#183E49]">{p.count}/{quests.length}</span>
-                </div>
-              ))}
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-4 pt-2">
+              {quests.map((quest) => {
+                const count = stats[quest.id] ?? 0;
+                const total = people.length;
+                return (
+                  <div key={quest.id}>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span dir="ltr" className="min-w-0 truncate font-mono text-xs font-bold text-[#183E49]">{quest.title}</span>
+                      <span dir="ltr" className="shrink-0 font-mono text-xs font-bold text-[#183E49]">{count}/{total}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-[#F2E7DC]"><div className="h-full rounded-full bg-[#2A9D8F]" style={{ width: `${total ? Math.min((count / total) * 100, 100) : 0}%` }} /></div>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         </aside>

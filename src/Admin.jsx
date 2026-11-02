@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, RotateCcw, Users, X } from "lucide-react";
+import { AlertTriangle, RotateCcw, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib/supabase";
 import { quests, questById, timeAgo } from "./quests";
@@ -83,8 +83,8 @@ export default function Admin() {
 
   const load = useCallback(async () => {
     const [u, p] = await Promise.all([
-      supabase.from("unlocks").select("id, quest_id, created_at, user_id, profiles(username)").order("created_at", { ascending: false }).limit(1000),
-      supabase.from("profiles").select("user_id, username").limit(1000),
+      supabase.from("unlocks").select("id, quest_id, created_at, user_id").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("profiles").select("user_id").limit(1000),
     ]);
     if (!u.error) setUnlocks(u.data ?? []);
     if (!p.error) setPeople(p.data ?? []);
@@ -108,24 +108,17 @@ export default function Admin() {
   }, [load]);
 
   const stats = useMemo(() => {
-    const counts = {};
     const perQuest = {};
     unlocks.forEach((r) => {
-      counts[r.user_id] = (counts[r.user_id] ?? 0) + 1;
       perQuest[r.quest_id] = (perQuest[r.quest_id] ?? 0) + 1;
     });
-    const list = people
-      .map((p) => ({ ...p, count: counts[p.user_id] ?? 0 }))
-      .sort((a, b) => b.count - a.count || a.username.localeCompare(b.username));
     const total = unlocks.length;
     const max = people.length * quests.length;
     return {
-      list,
       perQuest,
       total,
-      completed: list.filter((p) => p.count === quests.length).length,
+      activeQuests: Object.values(perQuest).filter(Boolean).length,
       pct: max ? Math.round((total / max) * 100) : 0,
-      avg: people.length ? (total / people.length).toFixed(1) : "0",
     };
   }, [unlocks, people]);
 
@@ -155,10 +148,10 @@ export default function Admin() {
           {notice && <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-2xl bg-[#EAF8F5] px-4 py-3 text-sm font-semibold text-[#21877C]">{notice}</motion.div>}
         </AnimatePresence>
 
-        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
           <Tile label="משתתפים" value={people.length} />
           <Tile label="משימות שהושלמו" value={stats.total} sub={`מתוך ${people.length * quests.length} אפשריות`} />
-          <Tile label={`השלימו ${quests.length}/${quests.length}`} value={stats.completed} />
+          <Tile label="משימות עם פעילות" value={stats.activeQuests} sub={`מתוך ${quests.length}`} />
         </section>
 
         <section className="rounded-[28px] border border-[#EEDFD2] bg-white p-5 shadow-[0_8px_25px_rgba(72,52,38,.05)] sm:p-6">
@@ -202,8 +195,8 @@ export default function Admin() {
               {unlocks.slice(0, 30).map((r) => (
                 <div key={r.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/75 px-3.5 py-2.5">
                   <div className="min-w-0 text-sm">
-                    <strong dir="auto">{r.profiles?.username ?? "מישהו.י"}</strong>
-                    <span dir="ltr" className="mr-2 font-mono text-xs font-bold text-[#167C73]">+ {questById[r.quest_id]?.title}</span>
+                    <span className="text-[#675246]">נוסף UNLOCK לקבוצה</span>
+                    <span dir="ltr" className="mr-2 font-mono text-xs font-bold text-[#167C73]">{questById[r.quest_id]?.title}</span>
                   </div>
                   <span className="shrink-0 text-xs text-[#927E70]">{timeAgo(r.created_at)}</span>
                 </div>
@@ -212,21 +205,6 @@ export default function Admin() {
           </section>
         </div>
 
-        <section className="rounded-[28px] border border-[#EEDFD2] bg-white p-5 shadow-[0_8px_25px_rgba(72,52,38,.05)] sm:p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-black"><Users size={20} /> משתתפים</h2>
-          {people.length === 0 && loaded && <div className="text-sm text-[#927E70]">עוד אף אחד לא הצטרף.</div>}
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {stats.list.map((p) => (
-              <div key={p.user_id} className="rounded-2xl border border-[#EEDFD2] bg-[#FFFCF8] px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span dir="auto" className="min-w-0 truncate font-semibold">{p.username}</span>
-                  <span dir="ltr" className={`shrink-0 font-mono text-sm font-black ${p.count === quests.length ? "text-[#21877C]" : "text-[#183E49]"}`}>{p.count}/{quests.length}</span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#F2E7DC]"><div className="h-full rounded-full bg-[#2A9D8F]" style={{ width: `${(p.count / quests.length) * 100}%` }} /></div>
-              </div>
-            ))}
-          </div>
-        </section>
       </main>
 
       <AnimatePresence>
