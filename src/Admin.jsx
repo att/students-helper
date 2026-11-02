@@ -83,7 +83,7 @@ export default function Admin() {
 
   const load = useCallback(async () => {
     const [u, p] = await Promise.all([
-      supabase.from("unlocks").select("id, quest_id, created_at, user_id").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("unlocks").select("id, quest_id, created_at, user_id, profiles(username)").order("created_at", { ascending: false }).limit(1000),
       supabase.from("profiles").select("user_id").limit(1000),
     ]);
     if (!u.error) setUnlocks(u.data ?? []);
@@ -195,7 +195,8 @@ export default function Admin() {
               {unlocks.slice(0, 30).map((r) => (
                 <div key={r.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/75 px-3.5 py-2.5">
                   <div className="min-w-0 text-sm">
-                    <span className="text-[#675246]">נוסף UNLOCK לקבוצה</span>
+                    <strong dir="auto">{r.profiles?.username ?? "משתתף.ת"}</strong>
+                    <span className="mr-1 text-[#675246]">הוסיף.ה לקבוצה</span>
                     <span dir="ltr" className="mr-2 font-mono text-xs font-bold text-[#167C73]">{questById[r.quest_id]?.title}</span>
                   </div>
                   <span className="shrink-0 text-xs text-[#927E70]">{timeAgo(r.created_at)}</span>

@@ -236,8 +236,8 @@ export default function UnlockYourNextMove() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto -mt-7 grid max-w-5xl gap-6 px-4 pb-14 lg:grid-cols-[1.45fr_.8fr] xl:max-w-7xl xl:grid-cols-[1.4fr_.75fr_.65fr]">
-        <section>
+      <main className="relative z-10 mx-auto -mt-7 grid max-w-5xl gap-6 px-4 pb-14 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,.8fr)] xl:max-w-7xl xl:grid-cols-[minmax(0,1.4fr)_minmax(0,.75fr)_minmax(0,.65fr)]">
+        <section className="min-w-0">
           <Card className="mb-3 rounded-[24px] border border-[#EEDFD2] bg-white/95 shadow-[0_12px_40px_rgba(54,47,41,.08)] sm:mb-5 sm:rounded-[28px]">
             <div className="flex items-center justify-between gap-4 px-4 py-3.5 sm:gap-6 sm:px-6 sm:py-5">
               <div className="min-w-0">
@@ -273,7 +273,7 @@ export default function UnlockYourNextMove() {
           </div>
         </section>
 
-        <aside>
+        <aside className="min-w-0">
           <Card className="overflow-hidden rounded-[28px] border-0 bg-[#FFE9D6] shadow-[0_12px_35px_rgba(72,52,38,.08)] lg:sticky lg:top-5">
             <div className="p-0">
               <div className="bg-[#F7C99F] p-5">
@@ -295,7 +295,7 @@ export default function UnlockYourNextMove() {
           </Card>
         </aside>
 
-        <aside className="lg:col-span-2 xl:col-span-1">
+        <aside className="min-w-0 lg:col-span-2 xl:col-span-1">
           <Card className="flex max-h-96 flex-col overflow-hidden rounded-[28px] border border-[#EEDFD2] bg-white shadow-[0_12px_35px_rgba(72,52,38,.06)] xl:sticky xl:top-5 xl:max-h-[calc(100vh-2.5rem)]">
             <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-1 pt-4">
               <div>
