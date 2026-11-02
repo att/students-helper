@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Check, Sparkles, Users, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib/supabase";
-import { quests, questById, timeAgo } from "./quests";
+import { timeAgo } from "./quests";
+import { useQuestTitles } from "./useQuestTitles";
 
 const NAME_RE = /^[\p{L}\p{N} ._-]{2,24}$/u;
 
@@ -110,6 +111,7 @@ function NameGate({ onJoin }) {
 }
 
 export default function UnlockYourNextMove() {
+  const { quests, questById } = useQuestTitles();
   const [profile, setProfile] = useState(undefined); // undefined = loading, null = needs name
   const [done, setDone] = useState([]);
   const [unlocks, setUnlocks] = useState([]);

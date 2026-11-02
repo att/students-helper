@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, Pencil, RotateCcw, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib/supabase";
-import { quests, questById, timeAgo } from "./quests";
+import { timeAgo } from "./quests";
+import { useQuestTitles } from "./useQuestTitles";
 
 function Tile({ label, value, sub }) {
   return (
@@ -73,11 +74,92 @@ function ResetModal({ onClose, onDone }) {
   );
 }
 
+function EditTaskNamesModal({ quests, onClose, onSaved }) {
+  const [titles, setTitles] = useState(() => quests.map(({ id, title }) => ({ quest_id: id, title })));
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save(e) {
+    e.preventDefault();
+    if (!code || busy || titles.some((item) => !item.title.trim())) return;
+    setBusy(true);
+    setError("");
+    const { error: err } = await supabase.rpc("admin_update_quest_titles", {
+      passcode: code,
+      titles: titles.map((item) => ({ quest_id: item.quest_id, title: item.title.trim() })),
+    });
+    setBusy(false);
+    if (err) {
+      setError(err.code === "28000" ? "קוד שגוי" : "השמירה נכשלה. בדקו שהרצתם את supabase/quest-titles.sql.");
+      return;
+    }
+    await onSaved();
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6" onClick={onClose}>
+      <motion.form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-task-titles-heading"
+        initial={{ scale: .95, y: 10 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: .95, opacity: 0 }}
+        onSubmit={save}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-full w-full max-w-2xl overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl sm:p-7"
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 id="edit-task-titles-heading" className="text-xl font-black text-[#3E342D]">עריכת שמות המשימות</h2>
+            <p className="mt-1 text-sm text-[#675246]">השמות החדשים יוצגו לכל המשתתפים.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="סגירה" className="rounded-xl p-2 text-[#6B747C] hover:bg-[#FFF9F2]"><X size={20} /></button>
+        </div>
+        <div className="space-y-3">
+          {titles.map((item, index) => (
+            <label key={item.quest_id} className="block">
+              <span dir="ltr" className="mb-1 block text-left font-mono text-xs font-bold text-[#183E49]">{quests[index].title}</span>
+              <input
+                maxLength={60}
+                required
+                value={item.title}
+                onChange={(e) => setTitles((current) => current.map((entry) => entry.quest_id === item.quest_id ? { ...entry, title: e.target.value } : entry))}
+                className="h-11 w-full rounded-xl border border-[#E7D9CC] bg-[#FFFCF8] px-3 outline-none focus:border-[#2A9D8F]"
+              />
+            </label>
+          ))}
+        </div>
+        <label htmlFor="edit-task-code" className="mb-1 mt-4 block text-sm font-semibold">קוד מנחה</label>
+        <input
+          id="edit-task-code"
+          type="password"
+          autoComplete="off"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          dir="ltr"
+          className="h-12 w-full rounded-2xl border border-[#E7D9CC] bg-[#FFFCF8] px-4 outline-none focus:border-[#2A9D8F]"
+        />
+        <div className="mt-2 min-h-5 text-sm text-[#B3402A]">{error}</div>
+        <div className="mt-3 flex gap-3">
+          <button type="button" onClick={onClose} className="h-12 flex-1 rounded-2xl border border-[#E7D9CC] font-bold text-[#3E342D] hover:bg-[#FFF9F2]">ביטול</button>
+          <button type="submit" disabled={!code || busy || titles.some((item) => !item.title.trim())} className="h-12 flex-1 rounded-2xl bg-[#16697A] font-bold text-white enabled:hover:bg-[#123B46] disabled:opacity-40">
+            {busy ? "..." : "שמירת שמות"}
+          </button>
+        </div>
+      </motion.form>
+    </motion.div>
+  );
+}
+
 export default function Admin() {
+  const { quests, questById, reloadQuestTitles } = useQuestTitles();
   const [unlocks, setUnlocks] = useState([]);
   const [people, setPeople] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [, setTick] = useState(0);
 
@@ -137,9 +219,14 @@ export default function Admin() {
             <div className="text-sm font-semibold text-[#FFD6A5]">לוח מנחה · מתעדכן אוטומטית</div>
             <h1 dir="ltr" className="mt-1 text-right font-mono text-3xl font-black leading-none sm:text-5xl">UNLOCK <span className="text-[#7BD8CF]">YOUR NEXT MOVE</span></h1>
           </div>
-          <button onClick={() => setResetOpen(true)} className="flex h-11 items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 text-sm font-bold hover:bg-[#B3402A]">
-            <RotateCcw size={16} /> איפוס כל הנתונים
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setEditOpen(true)} className="flex h-11 items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 text-sm font-bold hover:bg-white/20">
+              <Pencil size={16} /> עריכת שמות משימות
+            </button>
+            <button onClick={() => setResetOpen(true)} className="flex h-11 items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 text-sm font-bold hover:bg-[#B3402A]">
+              <RotateCcw size={16} /> איפוס כל הנתונים
+            </button>
+          </div>
         </div>
       </header>
 
@@ -209,6 +296,7 @@ export default function Admin() {
       </main>
 
       <AnimatePresence>
+        {editOpen && <EditTaskNamesModal quests={quests} onClose={() => setEditOpen(false)} onSaved={async () => { await reloadQuestTitles(); setEditOpen(false); setNotice("שמות המשימות עודכנו"); setTimeout(() => setNotice(""), 4000); }} />}
         {resetOpen && <ResetModal onClose={() => setResetOpen(false)} onDone={afterReset} />}
       </AnimatePresence>
     </div>
