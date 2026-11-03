@@ -34,3 +34,5 @@ end;
 $$;
 revoke all on function public.admin_reset(text) from public;
 grant execute on function public.admin_reset(text) to anon, authenticated;
+
+notify pgrst, 'reload schema';
