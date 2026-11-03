@@ -1,4 +1,4 @@
--- Run once in Supabase SQL Editor. Uses the moderator passcode configured in admin.sql.
+-- Run in Supabase SQL Editor to enable task editing and reset-on-save.
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -39,7 +39,9 @@ create policy "quest titles readable by all" on public.quest_titles
 revoke insert, update, delete on public.quest_titles from anon, authenticated;
 grant select on public.quest_titles to anon, authenticated;
 
-create or replace function public.admin_update_quest_titles(passcode text, titles jsonb)
+drop function if exists public.admin_update_quest_titles_and_reset(jsonb);
+
+create or replace function public.admin_update_quest_titles_and_reset(passcode text, titles jsonb)
 returns void
 language plpgsql security definer set search_path = ''
 as $$
@@ -59,7 +61,7 @@ begin
 
   select count(distinct item.quest_id)
     into title_count
-    from jsonb_to_recordset(titles) as item(quest_id integer, title text)
+    from jsonb_to_recordset(titles) as item(quest_id integer, title text, subtitle text)
    where item.quest_id between 1 and 6
      and char_length(trim(item.title)) between 1 and 60
      and char_length(coalesce(item.subtitle, '')) <= 160;
@@ -72,9 +74,11 @@ begin
      set title = trim(item.title), subtitle = trim(coalesce(item.subtitle, ''))
     from jsonb_to_recordset(titles) as item(quest_id integer, title text, subtitle text)
    where target.quest_id = item.quest_id;
+
+  truncate table public.unlocks, public.profiles restart identity;
 end;
 $$;
-revoke all on function public.admin_update_quest_titles(text, jsonb) from public;
-grant execute on function public.admin_update_quest_titles(text, jsonb) to anon, authenticated;
+revoke all on function public.admin_update_quest_titles_and_reset(text, jsonb) from public;
+grant execute on function public.admin_update_quest_titles_and_reset(text, jsonb) to anon, authenticated;
 
 notify pgrst, 'reload schema';

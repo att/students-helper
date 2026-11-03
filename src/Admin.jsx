@@ -76,22 +76,27 @@ function ResetModal({ onClose, onDone }) {
 
 function EditTaskNamesModal({ quests, onClose, onSaved }) {
   const [titles, setTitles] = useState(() => quests.map(({ id, title, text }) => ({ quest_id: id, title, subtitle: text })));
+  const [confirmed, setConfirmed] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function save(e) {
     e.preventDefault();
-    if (!code || busy || titles.some((item) => !item.title.trim() || item.subtitle.length > 160)) return;
+    if (!confirmed || !code || busy || titles.some((item) => !item.title.trim() || item.subtitle.length > 160)) return;
     setBusy(true);
     setError("");
-    const { error: err } = await supabase.rpc("admin_update_quest_titles", {
+    const { error: err } = await supabase.rpc("admin_update_quest_titles_and_reset", {
       passcode: code,
       titles: titles.map((item) => ({ quest_id: item.quest_id, title: item.title.trim(), subtitle: item.subtitle.trim() })),
     });
     setBusy(false);
     if (err) {
-      setError(err.code === "28000" ? "קוד שגוי" : "השמירה נכשלה. בדקו שהרצתם את supabase/quest-titles.sql.");
+      if (err.code === "28000") {
+        setError("קוד מנחה שגוי");
+        return;
+      }
+      setError("השמירה נכשלה. בדקו שהרצתם את supabase/quest-titles.sql.");
       return;
     }
     await onSaved();
@@ -147,11 +152,19 @@ function EditTaskNamesModal({ quests, onClose, onSaved }) {
             </div>
           ))}
         </div>
+        <div className="mt-4 rounded-2xl border border-[#F0BE8D] bg-[#FFF0E2] p-3 text-sm leading-6 text-[#7A421E]">
+          שמירת השינויים תמחק את כל שמות המשתתפים ואת ההתקדמות. הפעילות תתחיל מחדש.
+        </div>
+        <label className="mt-3 flex items-start gap-2 text-sm leading-5 text-[#3E342D]">
+          <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-1 h-4 w-4 accent-[#16697A]" />
+          <span>אני מאשר.ת לאפס את הנתונים ולהתחיל מחדש</span>
+        </label>
         <label htmlFor="edit-task-code" className="mb-1 mt-4 block text-sm font-semibold">קוד מנחה</label>
         <input
           id="edit-task-code"
           type="password"
           autoComplete="off"
+          required
           value={code}
           onChange={(e) => setCode(e.target.value)}
           dir="ltr"
@@ -160,8 +173,8 @@ function EditTaskNamesModal({ quests, onClose, onSaved }) {
         <div className="mt-2 min-h-5 text-sm text-[#B3402A]">{error}</div>
         <div className="mt-3 flex gap-3">
           <button type="button" onClick={onClose} className="h-12 flex-1 rounded-2xl border border-[#E7D9CC] font-bold text-[#3E342D] hover:bg-[#FFF9F2]">ביטול</button>
-          <button type="submit" disabled={!code || busy || titles.some((item) => !item.title.trim() || item.subtitle.length > 160)} className="h-12 flex-1 rounded-2xl bg-[#16697A] font-bold text-white enabled:hover:bg-[#123B46] disabled:opacity-40">
-            {busy ? "..." : "שמירת שמות"}
+          <button type="submit" disabled={!confirmed || !code || busy || titles.some((item) => !item.title.trim() || item.subtitle.length > 160)} className="h-12 flex-1 rounded-2xl bg-[#16697A] font-bold text-white enabled:hover:bg-[#123B46] disabled:opacity-40">
+            {busy ? "..." : "שמירה והתחלה מחדש"}
           </button>
         </div>
       </motion.form>
@@ -312,7 +325,7 @@ export default function Admin() {
       </main>
 
       <AnimatePresence>
-        {editOpen && <EditTaskNamesModal quests={quests} onClose={() => setEditOpen(false)} onSaved={async () => { await reloadQuestTitles(); setEditOpen(false); setNotice("שמות המשימות עודכנו"); setTimeout(() => setNotice(""), 4000); }} />}
+        {editOpen && <EditTaskNamesModal quests={quests} onClose={() => setEditOpen(false)} onSaved={async () => { await reloadQuestTitles(); await load(); setEditOpen(false); setNotice("המשימות עודכנו והנתונים אופסו"); setTimeout(() => setNotice(""), 4000); }} />}
         {resetOpen && <ResetModal onClose={() => setResetOpen(false)} onDone={afterReset} />}
       </AnimatePresence>
     </div>
