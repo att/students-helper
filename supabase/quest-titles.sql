@@ -4,17 +4,33 @@ create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.quest_titles (
   quest_id smallint primary key check (quest_id between 1 and 6),
-  title text not null check (char_length(title) between 1 and 60)
+  title text not null check (char_length(title) between 1 and 60),
+  subtitle text not null check (char_length(subtitle) <= 160)
 );
 
-insert into public.quest_titles (quest_id, title) values
-  (1, 'UNLOCK A QUESTION'),
-  (2, 'UNLOCK A CONVERSATION'),
-  (3, 'UNLOCK FEEDBACK'),
-  (4, 'UNLOCK SOMEONE ELSE'),
-  (5, 'UNLOCK YOUR PROFILE'),
-  (6, 'UNLOCK A CONNECTION')
+alter table public.quest_titles add column if not exists subtitle text;
+
+insert into public.quest_titles (quest_id, title, subtitle) values
+  (1, 'UNLOCK A QUESTION', 'שאלתי שאלה במהלך הרצאה'),
+  (2, 'UNLOCK A CONVERSATION', 'ניגשתי למרצה או לאחד מאנשי הצוות'),
+  (3, 'UNLOCK FEEDBACK', 'ביקשתי מהמראיין נקודה לשמר ונקודה לשפר'),
+  (4, 'UNLOCK SOMEONE ELSE', 'נתתי פידבק חיובי לסטודנט.ית אחר.ת'),
+  (5, 'UNLOCK YOUR PROFILE', 'שיפרתי משהו בפרופיל הלינקדאין שלי'),
+  (6, 'UNLOCK A CONNECTION', 'יצרתי קשר חדש ושלחתי הזמנה אישית בלינקדאין')
 on conflict (quest_id) do nothing;
+
+update public.quest_titles
+   set subtitle = case quest_id
+     when 1 then 'שאלתי שאלה במהלך הרצאה'
+     when 2 then 'ניגשתי למרצה או לאחד מאנשי הצוות'
+     when 3 then 'ביקשתי מהמראיין נקודה לשמר ונקודה לשפר'
+     when 4 then 'נתתי פידבק חיובי לסטודנט.ית אחר.ת'
+     when 5 then 'שיפרתי משהו בפרופיל הלינקדאין שלי'
+     when 6 then 'יצרתי קשר חדש ושלחתי הזמנה אישית בלינקדאין'
+   end
+ where subtitle is null;
+
+alter table public.quest_titles alter column subtitle set not null;
 
 alter table public.quest_titles enable row level security;
 drop policy if exists "quest titles readable by all" on public.quest_titles;
@@ -45,15 +61,16 @@ begin
     into title_count
     from jsonb_to_recordset(titles) as item(quest_id integer, title text)
    where item.quest_id between 1 and 6
-     and char_length(trim(item.title)) between 1 and 60;
+     and char_length(trim(item.title)) between 1 and 60
+     and char_length(coalesce(item.subtitle, '')) <= 160;
 
   if title_count <> 6 then
     raise exception 'invalid task titles' using errcode = '22023';
   end if;
 
   update public.quest_titles as target
-     set title = trim(item.title)
-    from jsonb_to_recordset(titles) as item(quest_id integer, title text)
+     set title = trim(item.title), subtitle = trim(coalesce(item.subtitle, ''))
+    from jsonb_to_recordset(titles) as item(quest_id integer, title text, subtitle text)
    where target.quest_id = item.quest_id;
 end;
 $$;

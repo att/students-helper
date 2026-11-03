@@ -75,19 +75,19 @@ function ResetModal({ onClose, onDone }) {
 }
 
 function EditTaskNamesModal({ quests, onClose, onSaved }) {
-  const [titles, setTitles] = useState(() => quests.map(({ id, title }) => ({ quest_id: id, title })));
+  const [titles, setTitles] = useState(() => quests.map(({ id, title, text }) => ({ quest_id: id, title, subtitle: text })));
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function save(e) {
     e.preventDefault();
-    if (!code || busy || titles.some((item) => !item.title.trim())) return;
+    if (!code || busy || titles.some((item) => !item.title.trim() || item.subtitle.length > 160)) return;
     setBusy(true);
     setError("");
     const { error: err } = await supabase.rpc("admin_update_quest_titles", {
       passcode: code,
-      titles: titles.map((item) => ({ quest_id: item.quest_id, title: item.title.trim() })),
+      titles: titles.map((item) => ({ quest_id: item.quest_id, title: item.title.trim(), subtitle: item.subtitle.trim() })),
     });
     setBusy(false);
     if (err) {
@@ -112,23 +112,39 @@ function EditTaskNamesModal({ quests, onClose, onSaved }) {
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 id="edit-task-titles-heading" className="text-xl font-black text-[#3E342D]">עריכת שמות המשימות</h2>
-            <p className="mt-1 text-sm text-[#675246]">השמות החדשים יוצגו לכל המשתתפים.</p>
+            <h2 id="edit-task-titles-heading" className="text-xl font-black text-[#3E342D]">עריכת משימות</h2>
+            <p className="mt-1 text-sm text-[#675246]">אפשר לערוך את הכותרת ואת הטקסט בעברית.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="סגירה" className="rounded-xl p-2 text-[#6B747C] hover:bg-[#FFF9F2]"><X size={20} /></button>
         </div>
         <div className="space-y-3">
           {titles.map((item, index) => (
-            <label key={item.quest_id} className="block">
-              <span dir="ltr" className="mb-1 block text-left font-mono text-xs font-bold text-[#183E49]">{quests[index].title}</span>
-              <input
-                maxLength={60}
-                required
-                value={item.title}
-                onChange={(e) => setTitles((current) => current.map((entry) => entry.quest_id === item.quest_id ? { ...entry, title: e.target.value } : entry))}
-                className="h-11 w-full rounded-xl border border-[#E7D9CC] bg-[#FFFCF8] px-3 outline-none focus:border-[#2A9D8F]"
-              />
-            </label>
+            <div key={item.quest_id} className="rounded-2xl border border-[#EEDFD2] bg-[#FFFCF8] p-3">
+              <span dir="ltr" className="mb-2 block text-left font-mono text-xs font-bold text-[#183E49]">{quests[index].title}</span>
+              <label className="mb-2 block">
+                <span className="mb-1 block text-xs font-semibold text-[#6B747C]">כותרת</span>
+                <input
+                  maxLength={60}
+                  required
+                  value={item.title}
+                  onChange={(e) => setTitles((current) => current.map((entry) => entry.quest_id === item.quest_id ? { ...entry, title: e.target.value } : entry))}
+                  dir="auto"
+                  className="h-10 w-full rounded-xl border border-[#E7D9CC] bg-white px-3 outline-none focus:border-[#2A9D8F]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-[#6B747C]">טקסט בעברית</span>
+                <textarea
+                  maxLength={160}
+                  rows={2}
+                  value={item.subtitle}
+                  onChange={(e) => setTitles((current) => current.map((entry) => entry.quest_id === item.quest_id ? { ...entry, subtitle: e.target.value } : entry))}
+                  dir="rtl"
+                  className="w-full resize-y rounded-xl border border-[#E7D9CC] bg-white px-3 py-2 outline-none focus:border-[#2A9D8F]"
+                />
+              </label>
+              {item.subtitle.length > 160 && <span className="text-xs text-[#B3402A]">עד 160 תווים</span>}
+            </div>
           ))}
         </div>
         <label htmlFor="edit-task-code" className="mb-1 mt-4 block text-sm font-semibold">קוד מנחה</label>
@@ -144,7 +160,7 @@ function EditTaskNamesModal({ quests, onClose, onSaved }) {
         <div className="mt-2 min-h-5 text-sm text-[#B3402A]">{error}</div>
         <div className="mt-3 flex gap-3">
           <button type="button" onClick={onClose} className="h-12 flex-1 rounded-2xl border border-[#E7D9CC] font-bold text-[#3E342D] hover:bg-[#FFF9F2]">ביטול</button>
-          <button type="submit" disabled={!code || busy || titles.some((item) => !item.title.trim())} className="h-12 flex-1 rounded-2xl bg-[#16697A] font-bold text-white enabled:hover:bg-[#123B46] disabled:opacity-40">
+          <button type="submit" disabled={!code || busy || titles.some((item) => !item.title.trim() || item.subtitle.length > 160)} className="h-12 flex-1 rounded-2xl bg-[#16697A] font-bold text-white enabled:hover:bg-[#123B46] disabled:opacity-40">
             {busy ? "..." : "שמירת שמות"}
           </button>
         </div>

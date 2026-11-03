@@ -6,8 +6,8 @@ export function useQuestTitles() {
   const [titles, setTitles] = useState({});
 
   const reloadQuestTitles = useCallback(async () => {
-    const { data, error } = await supabase.from("quest_titles").select("quest_id, title");
-    if (!error) setTitles(Object.fromEntries((data ?? []).map((row) => [row.quest_id, row.title])));
+    const { data, error } = await supabase.from("quest_titles").select("quest_id, title, subtitle");
+    if (!error) setTitles(Object.fromEntries((data ?? []).map((row) => [row.quest_id, row])));
   }, []);
 
   useEffect(() => {
@@ -17,7 +17,11 @@ export function useQuestTitles() {
   }, [reloadQuestTitles]);
 
   const quests = useMemo(
-    () => defaultQuests.map((quest) => ({ ...quest, title: titles[quest.id] ?? quest.title })),
+    () => defaultQuests.map((quest) => ({
+      ...quest,
+      title: titles[quest.id]?.title ?? quest.title,
+      text: titles[quest.id]?.subtitle ?? quest.text,
+    })),
     [titles],
   );
   const questById = useMemo(() => Object.fromEntries(quests.map((quest) => [quest.id, quest])), [quests]);
