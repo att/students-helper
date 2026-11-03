@@ -1,4 +1,5 @@
--- Run in Supabase SQL Editor to enable task editing and reset-on-save.
+-- Run supabase/admin.sql first, then this script in Supabase SQL Editor.
+-- This enables task editing and reset-on-save with the existing moderator passcode.
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -39,6 +40,7 @@ create policy "quest titles readable by all" on public.quest_titles
 revoke insert, update, delete on public.quest_titles from anon, authenticated;
 grant select on public.quest_titles to anon, authenticated;
 
+drop function if exists public.admin_update_quest_titles(text, jsonb);
 drop function if exists public.admin_update_quest_titles_and_reset(jsonb);
 
 create or replace function public.admin_update_quest_titles_and_reset(passcode text, titles jsonb)

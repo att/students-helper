@@ -28,7 +28,7 @@ function ResetModal({ onClose, onDone }) {
     const { error: err } = await supabase.rpc("admin_reset", { passcode: code });
     setBusy(false);
     if (err) {
-      setError(err.code === "28000" ? "קוד שגוי" : "האיפוס נכשל. בדקו שהרצתם את supabase/admin.sql.");
+      setError(err.code === "28000" ? "קוד שגוי" : `האיפוס נכשל (${err.code ?? "unknown"}): ${err.message}`);
       return;
     }
     onDone();
@@ -96,7 +96,7 @@ function EditTaskNamesModal({ quests, onClose, onSaved }) {
         setError("קוד מנחה שגוי");
         return;
       }
-      setError("השמירה נכשלה. בדקו שהרצתם את supabase/quest-titles.sql.");
+      setError(`השמירה נכשלה (${err.code ?? "unknown"}): ${err.message}`);
       return;
     }
     await onSaved();

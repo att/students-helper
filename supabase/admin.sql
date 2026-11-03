@@ -16,7 +16,7 @@ revoke all on public.admin_secret from anon, authenticated;
 
 insert into public.admin_secret (passcode_hash)
 values (extensions.crypt('CHANGE-ME', extensions.gen_salt('bf')))
-on conflict (id) do update set passcode_hash = excluded.passcode_hash;
+on conflict (id) do nothing;
 
 create or replace function public.admin_reset(passcode text)
 returns void
